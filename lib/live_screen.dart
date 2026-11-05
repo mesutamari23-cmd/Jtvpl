@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'xtream_service.dart';
 
@@ -16,7 +17,7 @@ class _LiveScreenState extends State<LiveScreen> {
   LiveCategory? _cat;
   LiveChannel? _current;
   VideoPlayerController? _ctrl;
-  bool _loadingList = true, _loadingVideo = false;
+  bool _loadingList = true, _loadingVideo = false, _full = false;
   String? _error;
   int _token = 0;
 
@@ -28,8 +29,29 @@ class _LiveScreenState extends State<LiveScreen> {
 
   @override
   void dispose() {
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _ctrl?.dispose();
     super.dispose();
+  }
+
+  Future<void> _setFull(bool v) async {
+    setState(() => _full = v);
+    if (v) {
+      await SystemChrome.setPreferredOrientations(
+          [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
+  }
+
+  void _zap(int d) {
+    if (_channels.isEmpty || _current == null) return;
+    final i = _channels.indexWhere((c) => c.id == _current!.id);
+    if (i < 0) return;
+    _play(_channels[(i + d + _channels.length) % _channels.length]);
   }
 
   Future<void> _loadCats() async {
@@ -108,7 +130,8 @@ class _LiveScreenState extends State<LiveScreen> {
     }
     if (_ctrl != null && _ctrl!.value.isInitialized) {
       return AspectRatio(
-        aspectRatio: _ctrl!.value.aspectRatio == 0 ? 16 / 9 : _ctrl!.value.aspectRatio,
+        aspectRatio:
+            _ctrl!.value.aspectRatio == 0 ? 16 / 9 : _ctrl!.value.aspectRatio,
         child: VideoPlayer(_ctrl!),
       );
     }
@@ -118,8 +141,38 @@ class _LiveScreenState extends State<LiveScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _fullView() {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: (_, e) {
+          if (e is! KeyDownEvent) return KeyEventResult.ignored;
+          final k = e.logicalKey;
+          if (k == LogicalKeyboardKey.arrowUp) {
+            _zap(-1);
+            return KeyEventResult.handled;
+          }
+          if (k == LogicalKeyboardKey.arrowDown) {
+            _zap(1);
+            return KeyEventResult.handled;
+          }
+          if (k == LogicalKeyboardKey.select || k == LogicalKeyboardKey.enter) {
+            _setFull(false);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _setFull(false),
+          child: SizedBox.expand(child: Center(child: _player())),
+        ),
+      ),
+    );
+  }
+
+  Widget _normalView() {
     final size = MediaQuery.of(context).size;
     final videoH = min(size.width * 9 / 16, size.height * 0.42);
 
@@ -134,7 +187,19 @@ class _LiveScreenState extends State<LiveScreen> {
             height: videoH,
             width: double.infinity,
             color: Colors.black,
-            child: Center(child: _player()),
+            child: Stack(
+              children: [
+                Center(child: _player()),
+                Positioned(
+                  left: 4,
+                  bottom: 4,
+                  child: IconButton(
+                    icon: const Icon(Icons.fullscreen_rounded, size: 30),
+                    onPressed: () => _setFull(true),
+                  ),
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: Row(
@@ -149,7 +214,8 @@ class _LiveScreenState extends State<LiveScreen> {
                         dense: true,
                         selected: c == _cat,
                         selectedTileColor: Colors.white12,
-                        title: Text(c.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+                        title: Text(c.name,
+                            maxLines: 2, overflow: TextOverflow.ellipsis),
                         onTap: () => _selectCat(c),
                       );
                     },
@@ -174,7 +240,8 @@ class _LiveScreenState extends State<LiveScreen> {
                                         errorBuilder: (_, __, ___) =>
                                             const Icon(Icons.tv_rounded)),
                               ),
-                              title: Text(ch.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              title: Text(ch.name,
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
                               onTap: () => _play(ch),
                             );
                           },
@@ -185,6 +252,17 @@ class _LiveScreenState extends State<LiveScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_full,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _setFull(false);
+      },
+      child: _full ? _fullView() : _normalView(),
     );
   }
 }
