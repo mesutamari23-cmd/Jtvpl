@@ -1,79 +1,214 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'theme.dart';
+import 'models.dart';
+import 'store.dart';
 import 'xtream_service.dart';
 import 'live_screen.dart';
-import 'login_screen.dart';
+import 'media_grid_screen.dart';
+import 'movie_detail_screen.dart';
+import 'series_detail_screen.dart';
+import 'player_screen.dart';
+import 'settings_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final XtreamService service;
   const HomeScreen({super.key, required this.service});
 
-  void _soon(BuildContext c) => ScaffoldMessenger.of(c)
-      .showSnackBar(const SnackBar(content: Text('قريباً')));
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late final Future<Map<String, String>> _acc = widget.service.account();
+
+  XtreamService get s => widget.service;
+
+  Future<void> _push(Widget w) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => w));
+    if (mounted) setState(() {});
+  }
+
+  Widget _cards(bool wide) {
+    final cards = <Widget>[
+      _HomeCard(
+        title: 'TV Direct',
+        subtitle: 'البث المباشر',
+        icon: Icons.live_tv_rounded,
+        colors: const [Color(0xFF7C5CFF), Color(0xFF3B2A99)],
+        onTap: () => _push(LiveScreen(service: s)),
+      ),
+      _HomeCard(
+        title: 'Films',
+        subtitle: 'الأفلام',
+        icon: Icons.movie_rounded,
+        colors: const [Color(0xFFE0A526), Color(0xFF8A5A00)],
+        onTap: () => _push(MediaGridScreen(
+          title: 'Films',
+          type: 'vod',
+          loadCats: s.vodCategories,
+          loadItems: s.vodStreams,
+          onOpen: (c, it) => Navigator.of(c).push<void>(MaterialPageRoute<void>(
+              builder: (_) => MovieDetailScreen(service: s, item: it))),
+        )),
+      ),
+      _HomeCard(
+        title: 'Séries',
+        subtitle: 'المسلسلات',
+        icon: Icons.video_library_rounded,
+        colors: const [Color(0xFF1FB5A0), Color(0xFF0B5C52)],
+        onTap: () => _push(MediaGridScreen(
+          title: 'Séries',
+          type: 'series',
+          loadCats: s.seriesCategories,
+          loadItems: s.seriesList,
+          onOpen: (c, it) => Navigator.of(c).push<void>(MaterialPageRoute<void>(
+              builder: (_) => SeriesDetailScreen(service: s, item: it))),
+        )),
+      ),
+    ];
+    return wide ? Row(children: cards) : Column(children: cards);
+  }
+
+  Widget _continueRow() {
+    final hist = Store.history();
+    if (hist.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 10, 20, 6),
+          child: Text('متابعة المشاهدة',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+        ),
+        SizedBox(
+          height: 104,
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            scrollDirection: Axis.horizontal,
+            itemCount: hist.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (_, i) {
+              final h = hist[i];
+              final p = h.dur > 0 ? (h.pos / h.dur).clamp(0.0, 1.0) : 0.0;
+              return SizedBox(
+                width: 180,
+                child: TvFocus(
+                  radius: 14,
+                  onTap: () => _push(PlayerScreen(items: [h.item])),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      h.item.image.isEmpty
+                          ? Container(color: Colors.white10)
+                          : Image.network(h.item.image,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  Container(color: Colors.white10)),
+                      Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.transparent, Colors.black87],
+                          ),
+                        ),
+                      ),
+                      const Center(
+                          child: Icon(Icons.play_circle_fill_rounded,
+                              size: 34, color: Colors.white70)),
+                      Positioned(
+                        left: 8,
+                        right: 8,
+                        bottom: 10,
+                        child: Text(h.item.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: LinearProgressIndicator(
+                            value: p, minHeight: 3, color: kGold),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-            colors: [Color(0xFF241459), Color(0xFF0A0E1F)],
-          ),
-        ),
+        decoration: kBgGradient,
         child: SafeArea(
           child: Column(
             children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 12, 0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.live_tv_rounded, color: kGold, size: 30),
+                    const SizedBox(width: 10),
+                    const Text('Mesut IPTV',
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    IconButton(
+                      tooltip: 'الإعدادات',
+                      icon: const Icon(Icons.settings_rounded),
+                      onPressed: () => _push(SettingsScreen(service: s)),
+                    ),
+                  ],
+                ),
+              ),
+              _continueRow(),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      _GlassCard(
-                        title: 'TV Direct',
-                        icon: Icons.live_tv_rounded,
-                        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => LiveScreen(service: service))),
-                      ),
-                      _GlassCard(
-                        title: 'Films',
-                        icon: Icons.movie_rounded,
-                        onTap: () => _soon(context),
-                      ),
-                      _GlassCard(
-                        title: 'Séries',
-                        icon: Icons.video_library_rounded,
-                        onTap: () => _soon(context),
-                      ),
-                    ],
+                  padding: const EdgeInsets.all(14),
+                  child: LayoutBuilder(
+                    builder: (_, box) => _cards(box.maxWidth >= 600),
                   ),
                 ),
               ),
-              Container(
-                height: 56,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                color: Colors.black38,
-                child: Row(
-                  children: [
-                    const Icon(Icons.person_rounded, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(service.username,
-                          overflow: TextOverflow.ellipsis,
-                          textDirection: TextDirection.ltr),
-                    ),
-                    TextButton.icon(
-                      onPressed: () async {
-                        await XtreamService.clear();
-                        if (!context.mounted) return;
-                        Navigator.of(context).pushReplacement(MaterialPageRoute(
-                            builder: (_) => const LoginScreen()));
-                      },
-                      icon: const Icon(Icons.logout_rounded),
-                      label: const Text('خروج'),
-                    ),
-                  ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                child: GlassBox(
+                  radius: 16,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: FutureBuilder<Map<String, String>>(
+                    future: _acc,
+                    builder: (_, snap) {
+                      final a = snap.data;
+                      return Row(
+                        children: [
+                          const Icon(Icons.person_rounded, size: 20, color: kGold),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(s.name,
+                                overflow: TextOverflow.ellipsis,
+                                textDirection: TextDirection.ltr),
+                          ),
+                          const Icon(Icons.event_rounded, size: 18, color: Colors.white60),
+                          const SizedBox(width: 4),
+                          Text(a == null ? '...' : 'ينتهي: ${a['exp']}',
+                              style: const TextStyle(fontSize: 13)),
+                          const SizedBox(width: 14),
+                          const Icon(Icons.devices_rounded, size: 18, color: Colors.white60),
+                          const SizedBox(width: 4),
+                          Text(a == null ? '...' : '${a['conn']}',
+                              style: const TextStyle(fontSize: 13)),
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ),
             ],
@@ -84,42 +219,53 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _GlassCard extends StatelessWidget {
-  final String title;
+class _HomeCard extends StatelessWidget {
+  final String title, subtitle;
   final IconData icon;
+  final List<Color> colors;
   final VoidCallback onTap;
-  const _GlassCard({required this.title, required this.icon, required this.onTap});
+  const _HomeCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.colors,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.all(6),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Material(
-              color: Colors.white.withOpacity(0.08),
-              child: InkWell(
-                onTap: onTap,
-                focusColor: const Color(0xFFD4AF37).withOpacity(0.35),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(icon, size: 52, color: const Color(0xFFD4AF37)),
-                      const SizedBox(height: 12),
-                      Text(title,
-                          style: const TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
+        child: SizedBox.expand(
+          child: TvFocus(
+            radius: 24,
+            onTap: onTap,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                  colors: [colors[0].withOpacity(0.55), colors[1].withOpacity(0.35)],
                 ),
+                border: Border.all(color: Colors.white24),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: const BoxDecoration(
+                        shape: BoxShape.circle, color: Colors.white12),
+                    child: Icon(icon, size: 40, color: Colors.white),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(title,
+                      style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: const TextStyle(color: Colors.white70)),
+                ],
               ),
             ),
           ),
