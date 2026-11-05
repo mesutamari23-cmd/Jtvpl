@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Flutter APK Automatically
 
 on:
   push:
@@ -9,12 +9,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: subosito/flutter-action@v2
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.19.0'
-      - run: flutter pub get
-      - run: flutter build apk --release
-      - uses: actions/upload-artifact@v4
+          cache: true
+
+      - name: Create Clean Flutter Project & Build
+        run: |
+          # حفظ مجلد الكود الحالي
+          mkdir temp_code
+          cp -r lib temp_code/
+          cp pubspec.yaml temp_code/
+          
+          # إنشاء مشروع جديد كلياً نظيف ومتوافق
+          flutter create . --org com.xtream.tv --project-name xtream_tv_app --force
+          
+          # استعادة أكوادك وملفاتك
+          rm -rf lib
+          cp -r temp_code/lib .
+          cp temp_code/pubspec.yaml .
+          
+          # تثبيت الحزم وبناء التطبيق
+          flutter pub get
+          flutter build apk --release
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: xtream-app-release
           path: build/app/outputs/flutter-apk/app-release.apk
