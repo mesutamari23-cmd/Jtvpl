@@ -13,48 +13,63 @@ class LiveTvScreen extends StatefulWidget {
 }
 
 class _LiveTvScreenState extends State<LiveTvScreen> {
-  late final Player player = Player();
-  late final VideoController controller = VideoController(player);
-
+  late final Player player;
+  late final VideoController controller;
+  
   List<dynamic> categories = [];
   List<dynamic> channels = [];
   String? selectedCategoryId;
   String currentChannelTitle = "اختر قناة للتشغيل";
   bool isLoadingChannels = false;
+  bool isPlayerInitialized = false;
 
   @override
   void initState() {
     super.initState();
+    try {
+      player = Player();
+      controller = VideoController(player);
+      isPlayerInitialized = true;
+    } catch (e) {
+      isPlayerInitialized = false;
+    }
     _loadCategories();
   }
 
   @override
   void dispose() {
-    player.dispose();
+    if (isPlayerInitialized) {
+      player.dispose();
+    }
     super.dispose();
   }
 
   void _loadCategories() async {
     final cats = await widget.xtreamService.getLiveCategories();
-    setState(() {
-      categories = cats;
-      if (categories.isNotEmpty) {
-        selectedCategoryId = categories.first['category_id'].toString();
-        _loadChannels(selectedCategoryId!);
-      }
-    });
+    if (mounted) {
+      setState(() {
+        categories = cats;
+        if (categories.isNotEmpty) {
+          selectedCategoryId = categories.first['category_id'].toString();
+          _loadChannels(selectedCategoryId!);
+        }
+      });
+    }
   }
 
   void _loadChannels(String categoryId) async {
     setState(() => isLoadingChannels = true);
     final chs = await widget.xtreamService.getLiveStreams(categoryId: categoryId);
-    setState(() {
-      channels = chs;
-      isLoadingChannels = false;
-    });
+    if (mounted) {
+      setState(() {
+        channels = chs;
+        isLoadingChannels = false;
+      });
+    }
   }
 
   void _playChannel(dynamic channel) {
+    if (!isPlayerInitialized) return;
     final streamId = channel['stream_id'];
     final url = widget.xtreamService.buildStreamUrl(streamId);
     setState(() {
@@ -69,14 +84,16 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Top Video Player Section
+            // مشغل الفيديو العلوي مع معالجة الأخطاء والشاشة السوداء
             Container(
               height: 240,
               color: Colors.black,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  Video(controller: controller),
+                  isPlayerInitialized
+                      ? Video(controller: controller)
+                      : const Center(child: Text("جاري تهيئة المشغل...", style: TextStyle(color: Colors.white70))),
                   Positioned(
                     top: 10,
                     right: 10,
@@ -93,11 +110,10 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
               ),
             ),
 
-            // Channel & Category Navigation (RTL layout)
+            // قائمة الفئات والقنوات
             Expanded(
               child: Row(
                 children: [
-                  // Categories Navigation Sidebar
                   Container(
                     width: 150,
                     color: const Color(0xFF141418),
@@ -117,7 +133,6 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: isSelected ? Colors.purpleAccent : Colors.white70,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                     fontSize: 13,
                                   ),
                                 ),
@@ -131,10 +146,7 @@ class _LiveTvScreenState extends State<LiveTvScreen> {
                             },
                           ),
                   ),
-
                   const VerticalDivider(width: 1, color: Colors.white10),
-
-                  // Channels Content List
                   Expanded(
                     child: Container(
                       color: const Color(0xFF0A0A0C),
