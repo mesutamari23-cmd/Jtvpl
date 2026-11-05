@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 /// اجعلها false بعد وضع معرّفاتك الحقيقية من لوحة AdMob
-const bool kTestAds = false;
+const bool kTestAds = true;
 const String kBannerId = 'ca-app-pub-8292052707705243/3492950965';
 // ضع هنا معرّف وحدة إعلان بيني (Interstitial) عند إنشائها. فارغ = معطّل
 const String kInterstitialId = '';
