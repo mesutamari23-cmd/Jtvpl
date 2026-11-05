@@ -26,20 +26,20 @@ jobs:
           flutter create --platforms=android --org com.mesut --project-name mesut_iptv .
           rm -rf test
 
-      - name: Patch AndroidManifest (internet, http, TV)
+      - name: Patch AndroidManifest (internet, http, TV, AdMob)
+        env:
+          # معرّف تطبيق AdMob الخاص بك
+          ADMOB_APP_ID: ca-app-pub-8292052707705243~8609546278
         run: |
           M=android/app/src/main/AndroidManifest.xml
           sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>\n    <uses-feature android:name="android.software.leanback" android:required="false"/>\n    <application android:usesCleartextTraffic="true"#' $M
           sed -i 's#<category android:name="android.intent.category.LAUNCHER"/>#&\n                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>#' $M
           sed -i 's#android:label="[^"]*"#android:label="Mesut IPTV"#' $M
+          sed -i "s#</application>#    <meta-data android:name=\"com.google.android.gms.ads.APPLICATION_ID\" android:value=\"$ADMOB_APP_ID\"/>\n    </application>#" $M
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/; s/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/' android/app/build.gradle*
 
-
-            - name: Add AdMob App ID
-        run: |
-          M=android/app/src/main/AndroidManifest.xml
-          sed -i '/<application /a\        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-8292052707705243~8609546278"/>' "$M"
       - run: flutter pub get
-      - run: flutter build apk --release
+      - run: flutter build apk --release --no-shrink --target-platform android-arm,android-arm64
 
       - uses: actions/upload-artifact@v4
         with:
