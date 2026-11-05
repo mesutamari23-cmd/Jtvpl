@@ -18,20 +18,16 @@ jobs:
 
       - name: Create Clean Flutter Project & Build
         run: |
-          # حفظ مجلد الكود الحالي
-          mkdir temp_code
-          cp -r lib temp_code/
-          cp pubspec.yaml temp_code/
+          # 1. إنشاء مشروع جديد نظيف ومتوافق في مجلد مؤقت
+          flutter create temp_project --org com.xtream.tv --project-name xtream_tv_app
           
-          # إنشاء مشروع جديد كلياً نظيف ومتوافق
-          flutter create . --org com.xtream.tv --project-name xtream_tv_app --force
+          # 2. نقل ملفاتك البرمجية الخاصة بك إلى المشروع الجديد
+          rm -rf temp_project/lib/*
+          cp -r lib/* temp_project/lib/
+          cp pubspec.yaml temp_project/
           
-          # استعادة أكوادك وملفاتك
-          rm -rf lib
-          cp -r temp_code/lib .
-          cp temp_code/pubspec.yaml .
-          
-          # تثبيت الحزم وبناء التطبيق
+          # 3. الانتقال للمجلد الجديد وبناء التطبيق مباشرة
+          cd temp_project
           flutter pub get
           flutter build apk --release
 
@@ -39,4 +35,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xtream-app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: temp_project/build/app/outputs/flutter-apk/app-release.apk
